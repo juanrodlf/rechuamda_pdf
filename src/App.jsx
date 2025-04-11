@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { PDFDocument } from "pdf-lib"; // Asegúrate de tener pdf-lib instalada
+import { PDFDocument, StandardFonts } from "pdf-lib"; // Asegúrate de tener pdf-lib instalada
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd"; // Importar la librería de drag-and-drop
 
 const App = () => {
@@ -57,12 +57,12 @@ const App = () => {
     const indexPage = pdfDoc.addPage();
     const indexPageWidth = indexPage.getWidth();
     const indexPageHeight = indexPage.getHeight();
-    const font = await pdfDoc.embedFont(PDFDocument.Font.Helvetica);
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const pageHeight = indexPageHeight - 50; // Margen superior
     let yPosition = pageHeight;
 
     // Escribir el índice en la primera página
-    indexPage.drawText("Índice de archivos combinados:", {
+    indexPage.drawText("ÍNDICE", {
       x: 50,
       y: yPosition,
       font,
