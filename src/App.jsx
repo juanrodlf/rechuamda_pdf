@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { PDFDocument } from "pdf-lib"; // Asegúrate de tener pdf-lib instalada
+import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd"; // Importar la librería de drag-and-drop
 
 const App = () => {
   const [pdfFiles, setPdfFiles] = useState([]); // Almacena los PDFs disponibles
@@ -35,10 +36,15 @@ const App = () => {
     setSelectedFiles(selected);
   };
 
-  const handleReorder = (draggedIndex, droppedIndex) => {
-    const reorderedFiles = [...selectedFiles];
-    const [removed] = reorderedFiles.splice(draggedIndex, 1);
-    reorderedFiles.splice(droppedIndex, 0, removed);
+  const handleReorder = (result) => {
+    const { source, destination } = result;
+    if (!destination) return; // No hacer nada si no hay destino
+
+    // Reordenar los archivos seleccionados
+    const reorderedFiles = Array.from(selectedFiles);
+    const [removed] = reorderedFiles.splice(source.index, 1);
+    reorderedFiles.splice(destination.index, 0, removed);
+
     setSelectedFiles(reorderedFiles);
   };
 
@@ -67,26 +73,65 @@ const App = () => {
   };
 
   return (
-    <div>
-      <h1>Sube tus PDFs</h1>
+    <div style={{ padding: '10px', fontFamily: 'Arial, sans-serif' }}>
+      <h1 style={{ textAlign: 'center' }}>Sube tus PDFs</h1>
 
       {/* Subir PDFs */}
-      <input type="file" accept="application/pdf" onChange={handlePdfUpload} multiple />
+      <input
+        type="file"
+        accept="application/pdf"
+        onChange={handlePdfUpload}
+        multiple
+        style={{ display: 'block', margin: '0 auto', marginBottom: '20px' }}
+      />
 
       <h2>Selecciona los PDFs para combinar (puedes cambiar el orden):</h2>
-      {/* Lista de archivos seleccionados */}
-      <ul>
-        {selectedFiles.map((file, index) => (
-          <li key={index}>
-            {file}{" "}
-            <button onClick={() => handleReorder(index, index - 1)} disabled={index === 0}>↑</button>
-            <button onClick={() => handleReorder(index, index + 1)} disabled={index === selectedFiles.length - 1}>↓</button>
-          </li>
-        ))}
-      </ul>
+      {/* Arrastrar y soltar lista de archivos seleccionados */}
+      <DragDropContext onDragEnd={handleReorder}>
+        <Droppable droppableId="droppable">
+          {(provided) => (
+            <ul
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              style={{
+                listStyleType: 'none',
+                padding: 0,
+                margin: '20px 0',
+                minHeight: '200px',
+              }}
+            >
+              {selectedFiles.map((file, index) => (
+                <Draggable key={file} draggableId={file} index={index}>
+                  {(provided) => (
+                    <li
+                      ref={provided.innerRef}
+                      {...provided.draggableProps}
+                      {...provided.dragHandleProps}
+                      style={{
+                        ...provided.draggableProps.style,
+                        padding: '10px',
+                        marginBottom: '10px',
+                        background: '#f4f4f4',
+                        borderRadius: '5px',
+                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      {file}
+                    </li>
+                  )}
+                </Draggable>
+              ))}
+              {provided.placeholder}
+            </ul>
+          )}
+        </Droppable>
+      </DragDropContext>
 
       {/* Selección de archivos PDF ya almacenados */}
-      <select multiple onChange={handleSelectFile}>
+      <select multiple onChange={handleSelectFile} style={{ width: '100%', padding: '10px', marginBottom: '20px' }}>
         {pdfFiles.map((pdf, index) => (
           <option key={index} value={pdf.name}>
             {pdf.name}
@@ -94,7 +139,20 @@ const App = () => {
         ))}
       </select>
 
-      <button onClick={handleCreatePdf}>Crear PDF combinado</button>
+      <button
+        onClick={handleCreatePdf}
+        style={{
+          width: '100%',
+          padding: '10px',
+          backgroundColor: '#4CAF50',
+          color: 'white',
+          border: 'none',
+          borderRadius: '5px',
+          fontSize: '16px',
+        }}
+      >
+        Crear PDF combinado
+      </button>
 
       {selectedFiles.length > 0 && (
         <div>
