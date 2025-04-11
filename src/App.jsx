@@ -1,7 +1,5 @@
 import React, { useState } from "react";
 import { PDFDocument } from "pdf-lib";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 
 export default function App() {
   const [files, setFiles] = useState([]);
@@ -44,24 +42,20 @@ export default function App() {
       {orderedFiles.length > 0 && (
         <div className="grid gap-2 mb-4">
           {orderedFiles.map((file, index) => (
-            <Card key={index} className="flex justify-between items-center p-2">
-              <CardContent className="flex-grow">{file.name}</CardContent>
+            <div key={index} className="flex justify-between items-center p-2 bg-white border rounded-lg">
+              <span>{file.name}</span>
               <div className="flex gap-2">
-                <Button onClick={() => moveFile(index, -1)} disabled={index === 0}>
-                  🔼
-                </Button>
-                <Button onClick={() => moveFile(index, 1)} disabled={index === orderedFiles.length - 1}>
-                  🔽
-                </Button>
+                <button onClick={() => moveFile(index, -1)} disabled={index === 0}>🔼</button>
+                <button onClick={() => moveFile(index, 1)} disabled={index === orderedFiles.length - 1}>🔽</button>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       )}
 
-      <Button onClick={mergePdfs} disabled={orderedFiles.length < 2} className="mb-4">
+      <button onClick={mergePdfs} disabled={orderedFiles.length < 2} className="mb-4 px-4 py-2 bg-blue-500 text-white rounded-lg">
         Combinar PDFs
-      </Button>
+      </button>
 
       {mergedPdfUrl && (
         <div>
