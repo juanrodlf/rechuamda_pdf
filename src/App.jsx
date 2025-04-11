@@ -1,69 +1,113 @@
-import React, { useState } from "react";
-import { PDFDocument } from "pdf-lib";
+import React, { useState, useEffect } from "react";
+import { PDFDocument } from "pdf-lib"; // Asegúrate de tener pdf-lib instalada
 
-export default function App() {
-  const [files, setFiles] = useState([]);
-  const [orderedFiles, setOrderedFiles] = useState([]);
-  const [mergedPdfUrl, setMergedPdfUrl] = useState(null);
+const App = () => {
+  const [pdfFiles, setPdfFiles] = useState([]); // Almacena los PDFs disponibles
+  const [selectedFiles, setSelectedFiles] = useState([]); // Almacena los PDFs seleccionados para combinar
 
-  const handleFileChange = (e) => {
-    const newFiles = Array.from(e.target.files);
-    setFiles(newFiles);
-    setOrderedFiles(newFiles);
+  useEffect(() => {
+    // Cargar los PDFs almacenados en localStorage cuando la app se inicie
+    const storedFiles = JSON.parse(localStorage.getItem("pdfFiles")) || [];
+    setPdfFiles(storedFiles);
+  }, []);
+
+  const handlePdfUpload = (event) => {
+    const files = event.target.files;
+    const newFiles = [...pdfFiles];
+
+    // Convertir los archivos PDF seleccionados a base64 para almacenarlos
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64Pdf = reader.result;
+        newFiles.push({ name: file.name, base64: base64Pdf });
+
+        // Actualizar el estado y el localStorage
+        setPdfFiles(newFiles);
+        localStorage.setItem("pdfFiles", JSON.stringify(newFiles));
+      };
+      reader.readAsDataURL(file);
+    });
   };
 
-  const moveFile = (index, direction) => {
-    const newOrder = [...orderedFiles];
-    const [moved] = newOrder.splice(index, 1);
-    newOrder.splice(index + direction, 0, moved);
-    setOrderedFiles(newOrder);
+  const handleSelectFile = (event) => {
+    const selected = Array.from(event.target.selectedOptions).map((option) => option.value);
+    setSelectedFiles(selected);
   };
 
-  const mergePdfs = async () => {
-    const mergedPdf = await PDFDocument.create();
+  const handleReorder = (draggedIndex, droppedIndex) => {
+    const reorderedFiles = [...selectedFiles];
+    const [removed] = reorderedFiles.splice(draggedIndex, 1);
+    reorderedFiles.splice(droppedIndex, 0, removed);
+    setSelectedFiles(reorderedFiles);
+  };
 
-    for (const file of orderedFiles) {
-      const bytes = await file.arrayBuffer();
-      const pdf = await PDFDocument.load(bytes);
-      const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
-      copiedPages.forEach((page) => mergedPdf.addPage(page));
+  const handleCreatePdf = async () => {
+    // Crear un nuevo PDF combinando los archivos seleccionados
+    const pdfDoc = await PDFDocument.create();
+    
+    for (const file of selectedFiles) {
+      const pdfFile = pdfFiles.find((pdf) => pdf.name === file);
+      const existingPdfBytes = await fetch(pdfFile.base64).then(res => res.arrayBuffer());
+      const existingPdfDoc = await PDFDocument.load(existingPdfBytes);
+      const copiedPages = await pdfDoc.copyPages(existingPdfDoc, existingPdfDoc.getPageIndices());
+      copiedPages.forEach((page) => pdfDoc.addPage(page));
     }
 
-    const mergedBytes = await mergedPdf.save();
-    const blob = new Blob([mergedBytes], { type: "application/pdf" });
-    setMergedPdfUrl(URL.createObjectURL(blob));
+    // Guardar el nuevo PDF
+    const pdfBytes = await pdfDoc.save();
+    const newPdfBlob = new Blob([pdfBytes], { type: "application/pdf" });
+    const newPdfUrl = URL.createObjectURL(newPdfBlob);
+
+    // Crear un enlace para descargar el PDF combinado
+    const link = document.createElement("a");
+    link.href = newPdfUrl;
+    link.download = "combined.pdf";
+    link.click();
   };
 
   return (
-    <div className="min-h-screen p-6 bg-gray-50 text-gray-900">
-      <h1 className="text-3xl font-bold mb-4">Combinar PDFs</h1>
-      <input type="file" multiple accept="application/pdf" onChange={handleFileChange} className="mb-4" />
+    <div>
+      <h1>Sube tus PDFs</h1>
 
-      {orderedFiles.length > 0 && (
-        <div className="grid gap-2 mb-4">
-          {orderedFiles.map((file, index) => (
-            <div key={index} className="flex justify-between items-center p-2 bg-white border rounded-lg">
-              <span>{file.name}</span>
-              <div className="flex gap-2">
-                <button onClick={() => moveFile(index, -1)} disabled={index === 0}>🔼</button>
-                <button onClick={() => moveFile(index, 1)} disabled={index === orderedFiles.length - 1}>🔽</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Subir PDFs */}
+      <input type="file" accept="application/pdf" onChange={handlePdfUpload} multiple />
 
-      <button onClick={mergePdfs} disabled={orderedFiles.length < 2} className="mb-4 px-4 py-2 bg-blue-500 text-white rounded-lg">
-        Combinar PDFs
-      </button>
+      <h2>Selecciona los PDFs para combinar (puedes cambiar el orden):</h2>
+      {/* Lista de archivos seleccionados */}
+      <ul>
+        {selectedFiles.map((file, index) => (
+          <li key={index}>
+            {file}{" "}
+            <button onClick={() => handleReorder(index, index - 1)} disabled={index === 0}>↑</button>
+            <button onClick={() => handleReorder(index, index + 1)} disabled={index === selectedFiles.length - 1}>↓</button>
+          </li>
+        ))}
+      </ul>
 
-      {mergedPdfUrl && (
+      {/* Selección de archivos PDF ya almacenados */}
+      <select multiple onChange={handleSelectFile}>
+        {pdfFiles.map((pdf, index) => (
+          <option key={index} value={pdf.name}>
+            {pdf.name}
+          </option>
+        ))}
+      </select>
+
+      <button onClick={handleCreatePdf}>Crear PDF combinado</button>
+
+      {selectedFiles.length > 0 && (
         <div>
-          <a href={mergedPdfUrl} download="combinado.pdf" className="text-blue-600 underline">
-            Descargar PDF Combinado
-          </a>
+          <h3>Archivos seleccionados:</h3>
+          <ul>
+            {selectedFiles.map((file, index) => (
+              <li key={index}>{file}</li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
   );
-}
+};
+
+export default App;
