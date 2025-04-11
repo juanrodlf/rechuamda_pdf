@@ -109,6 +109,16 @@ const App = () => {
     link.click();
   };
 
+  const handleClearPdfs = () => {
+    const confirmed = window.confirm("¿Estás seguro de que deseas eliminar todos los PDFs subidos?");
+    if (!confirmed) return;
+  
+    setPdfFiles([]);
+    setSelectedFiles([]);
+    setOutputFileName("pdf_combinado.pdf"); // Opcional
+    console.log("Se eliminaron todos los archivos PDF.");
+  };
+
   return (
     <div style={{ padding: '10px', fontFamily: 'Arial, sans-serif' }}>
       <h1 style={{ textAlign: 'center' }}>Sube tus PDFs</h1>
@@ -175,6 +185,26 @@ const App = () => {
           </option>
         ))}
       </select>
+      <div>
+        {/* Texto con el número de archivos */}
+        <p style={{ marginTop: '10px', fontStyle: 'italic', color: '#555' }}>
+          Hay {pdfFiles.length} PDF{pdfFiles.length !== 1 ? 's' : ''} cargado{pdfFiles.length !== 1 ? 's' : ''} en memoria.
+        </p>
+      </div>
+
+      <button
+        onClick={handleClearPdfs}
+        style={{
+          marginTop: '10px',
+          backgroundColor: 'red',
+          color: 'white',
+          padding: '8px 12px',
+          border: 'none',
+          borderRadius: '6px',
+        }}
+      >
+        Eliminar todos los PDFs
+      </button>
 
       {/* Input para elegir el nombre del archivo generado */}
       <div style={{ marginBottom: '20px' }}>
