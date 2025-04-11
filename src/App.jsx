@@ -5,6 +5,7 @@ import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd"; // 
 const App = () => {
   const [pdfFiles, setPdfFiles] = useState([]); // Almacena los PDFs disponibles
   const [selectedFiles, setSelectedFiles] = useState([]); // Almacena los PDFs seleccionados para combinar
+  const [outputFileName, setOutputFileName] = useState("combinado.pdf"); // Nombre del archivo generado
 
   useEffect(() => {
     // Cargar los PDFs almacenados en localStorage cuando la app se inicie
@@ -49,9 +50,45 @@ const App = () => {
   };
 
   const handleCreatePdf = async () => {
-    // Crear un nuevo PDF combinando los archivos seleccionados
+    // Crear un nuevo PDF combinado
     const pdfDoc = await PDFDocument.create();
-    
+
+    // Crear la página del índice (primer página)
+    const indexPage = pdfDoc.addPage();
+    const indexPageWidth = indexPage.getWidth();
+    const indexPageHeight = indexPage.getHeight();
+    const font = await pdfDoc.embedFont(PDFDocument.Font.Helvetica);
+    const pageHeight = indexPageHeight - 50; // Margen superior
+    let yPosition = pageHeight;
+
+    // Escribir el índice en la primera página
+    indexPage.drawText("Índice de archivos combinados:", {
+      x: 50,
+      y: yPosition,
+      font,
+      size: 14,
+    });
+    yPosition -= 20; // Espacio después del título
+
+    selectedFiles.forEach((file, index) => {
+      indexPage.drawText(`${index + 1}. ${file}`, {
+        x: 50,
+        y: yPosition,
+        font,
+        size: 12,
+      });
+      yPosition -= 20;
+    });
+
+    // Agregar un salto de página
+    indexPage.drawText("\n", {
+      x: 50,
+      y: yPosition - 20,
+      font,
+      size: 12,
+    });
+
+    // Combinamos los PDFs seleccionados
     for (const file of selectedFiles) {
       const pdfFile = pdfFiles.find((pdf) => pdf.name === file);
       const existingPdfBytes = await fetch(pdfFile.base64).then(res => res.arrayBuffer());
@@ -68,7 +105,7 @@ const App = () => {
     // Crear un enlace para descargar el PDF combinado
     const link = document.createElement("a");
     link.href = newPdfUrl;
-    link.download = "combined.pdf";
+    link.download = outputFileName; // Nombre del archivo ingresado por el usuario
     link.click();
   };
 
@@ -138,6 +175,19 @@ const App = () => {
           </option>
         ))}
       </select>
+
+      {/* Input para elegir el nombre del archivo generado */}
+      <div style={{ marginBottom: '20px' }}>
+        <label htmlFor="outputFileName" style={{ display: 'block' }}>Nombre del archivo generado:</label>
+        <input
+          type="text"
+          id="outputFileName"
+          value={outputFileName}
+          onChange={(e) => setOutputFileName(e.target.value)}
+          placeholder="Introduce el nombre del archivo"
+          style={{ width: '100%', padding: '10px' }}
+        />
+      </div>
 
       <button
         onClick={handleCreatePdf}
