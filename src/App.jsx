@@ -171,49 +171,60 @@ const App = () => {
   };
 
   const handleCreatePdf = async () => {
-    const pdfDoc = await PDFDocument.create();
-    const indexPage = pdfDoc.addPage();
-    const indexPageWidth = indexPage.getWidth();
-    const indexPageHeight = indexPage.getHeight();
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const pageHeight = indexPageHeight - 50;
-    let yPosition = pageHeight;
-
-    indexPage.drawText("ÍNDICE", {
-      x: 50,
-      y: yPosition,
-      font,
-      size: 14,
-    });
-    yPosition -= 20;
-
-    selectedFiles.forEach((file, index) => {
-      indexPage.drawText(`${index + 1}. ${file}`, {
+    try {
+      const pdfDoc = await PDFDocument.create();
+      const indexPage = pdfDoc.addPage();
+      const indexPageWidth = indexPage.getWidth();
+      const indexPageHeight = indexPage.getHeight();
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const pageHeight = indexPageHeight - 50;
+      let yPosition = pageHeight;
+  
+      indexPage.drawText("ÍNDICE", {
         x: 50,
         y: yPosition,
         font,
-        size: 12,
+        size: 14,
       });
       yPosition -= 20;
-    });
-
-    for (const file of selectedFiles) {
-      const pdfFile = pdfFiles.find((pdf) => pdf.name === file);
-      const existingPdfBytes = await fetch(pdfFile.base64).then((res) => res.arrayBuffer());
-      const existingPdfDoc = await PDFDocument.load(existingPdfBytes);
-      const copiedPages = await pdfDoc.copyPages(existingPdfDoc, existingPdfDoc.getPageIndices());
-      copiedPages.forEach((page) => pdfDoc.addPage(page));
+  
+      selectedFiles.forEach((file, index) => {
+        indexPage.drawText(`${index + 1}. ${file}`, {
+          x: 50,
+          y: yPosition,
+          font,
+          size: 12,
+        });
+        yPosition -= 20;
+      });
+  
+      for (const file of selectedFiles) {
+        const pdfFile = pdfFiles.find((pdf) => pdf.name === file);
+        const existingPdfBytes = await fetch(pdfFile.base64).then((res) => res.arrayBuffer());
+        const existingPdfDoc = await PDFDocument.load(existingPdfBytes);
+        const copiedPages = await pdfDoc.copyPages(existingPdfDoc, existingPdfDoc.getPageIndices());
+        copiedPages.forEach((page) => pdfDoc.addPage(page));
+      }
+  
+      const pdfBytes = await pdfDoc.save();
+      const newPdfBlob = new Blob([pdfBytes], { type: "application/pdf" });
+      const newPdfUrl = URL.createObjectURL(newPdfBlob);
+  
+      // Agregar un manejo para verificar si la URL fue creada
+      console.log("PDF generado:", newPdfUrl);
+  
+      const link = document.createElement("a");
+      link.href = newPdfUrl;
+      link.download = outputFileName;
+  
+      // Verificar si el enlace se está activando correctamente
+      link.click();
+    } catch (error) {
+      console.error("Error al generar el PDF:", error);
+      alert("Hubo un error al generar el PDF. Por favor, intenta nuevamente.");
     }
-
-    const pdfBytes = await pdfDoc.save();
-    const newPdfBlob = new Blob([pdfBytes], { type: "application/pdf" });
-    const newPdfUrl = URL.createObjectURL(newPdfBlob);
-
-    const link = document.createElement("a");
-    link.href = newPdfUrl;
-    link.download = outputFileName;
-    link.click();
   };
+  
 
   const handleClearPdfs = () => {
     const confirmed = window.confirm("¿Estás seguro de que deseas eliminar todos los PDFs subidos?");
