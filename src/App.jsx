@@ -119,6 +119,15 @@ const App = () => {
     console.log("Se eliminaron todos los archivos PDF.");
   };
 
+  const handleSelectAll = () => {
+    const allFileNames = pdfFiles.map(file => file.name);
+    setSelectedFiles(allFileNames);
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedFiles([]);
+  };
+
   return (
     <div style={{ padding: '10px', fontFamily: 'Arial, sans-serif' }}>
       <h1 style={{ textAlign: 'center' }}>Sube tus PDFs</h1>
@@ -176,6 +185,53 @@ const App = () => {
           )}
         </Droppable>
       </DragDropContext>
+
+      <button
+        onClick={handleSelectAll}
+        style={{
+          marginBottom: '10px',
+          backgroundColor: '#007bff',
+          color: 'white',
+          padding: '8px 12px',
+          border: 'none',
+          borderRadius: '6px',
+          cursor: 'pointer',
+        }}
+      >
+        Seleccionar todos los PDFs
+      </button>
+
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+        <button
+          onClick={handleSelectAll}
+          style={{
+            backgroundColor: '#007bff',
+            color: 'white',
+            padding: '8px 12px',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            flex: 1,
+          }}
+        >
+          Seleccionar todos los PDFs
+        </button>
+
+        <button
+          onClick={handleDeselectAll}
+          style={{
+            backgroundColor: '#6c757d',
+            color: 'white',
+            padding: '8px 12px',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            flex: 1,
+          }}
+        >
+          Deseleccionar todos
+        </button>
+      </div>
 
       {/* Selección de archivos PDF ya almacenados */}
       <select multiple onChange={handleSelectFile} style={{ width: '100%', padding: '10px', marginBottom: '20px' }}>
