@@ -2,17 +2,81 @@ import React, { useState, useEffect } from "react";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 
+// Función para abrir IndexedDB
+const openDb = () => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('pdfDatabase', 1);
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      const store = db.createObjectStore('pdfs', { keyPath: 'name' });
+      store.createIndex('name', 'name', { unique: true });
+    };
+
+    request.onsuccess = (event) => {
+      resolve(event.target.result);
+    };
+
+    request.onerror = (event) => {
+      reject('Error al abrir la base de datos: ' + event.target.error);
+    };
+  });
+};
+
+// Función para almacenar PDFs en IndexedDB
+const storePdf = async (name, base64) => {
+  const db = await openDb();
+  const transaction = db.transaction('pdfs', 'readwrite');
+  const store = transaction.objectStore('pdfs');
+  
+  const pdfData = { name, base64 };
+  const request = store.put(pdfData);
+
+  request.onsuccess = () => {
+    console.log('PDF guardado correctamente en IndexedDB');
+  };
+
+  request.onerror = (event) => {
+    console.error('Error al guardar el PDF:', event.target.error);
+  };
+};
+
+// Función para obtener un PDF de IndexedDB
+const getPdf = async (name) => {
+  const db = await openDb();
+  const transaction = db.transaction('pdfs', 'readonly');
+  const store = transaction.objectStore('pdfs');
+  
+  const request = store.get(name);
+
+  return new Promise((resolve, reject) => {
+    request.onsuccess = (event) => {
+      const pdf = event.target.result;
+      if (pdf) {
+        resolve(pdf);
+      } else {
+        reject('PDF no encontrado');
+      }
+    };
+
+    request.onerror = (event) => {
+      reject('Error al obtener el PDF: ' + event.target.error);
+    };
+  });
+};
+
 const App = () => {
   const [pdfFiles, setPdfFiles] = useState([]);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [outputFileName, setOutputFileName] = useState("combinado.pdf");
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Cargar PDFs por defecto desde src/assets/pdfs usando import.meta.glob
   useEffect(() => {
     const loadDefaultPDFs = async () => {
       const modules = import.meta.glob("../assets/pdfs/*.pdf", { as: "url" });
       const loadedFiles = [];
 
+      // Cargar los archivos predeterminados
       for (const [path, getUrl] of Object.entries(modules)) {
         const url = await getUrl();
         const name = path.split("/").pop();
@@ -29,9 +93,34 @@ const App = () => {
         loadedFiles.push({ name, base64 });
       }
 
-      const storedFiles = JSON.parse(localStorage.getItem("pdfFiles")) || [];
-      const allFiles = [...loadedFiles, ...storedFiles];
-      setPdfFiles(allFiles);
+      // Cargar archivos desde IndexedDB
+      try {
+        const storedFiles = [];
+        const db = await openDb();
+        const transaction = db.transaction('pdfs', 'readonly');
+        const store = transaction.objectStore('pdfs');
+        const cursorRequest = store.openCursor();
+
+        cursorRequest.onsuccess = (event) => {
+          const cursor = event.target.result;
+          if (cursor) {
+            storedFiles.push({ name: cursor.value.name, base64: cursor.value.base64 });
+            cursor.continue();
+          } else {
+            const allFiles = [...loadedFiles, ...storedFiles];
+            setPdfFiles(allFiles);
+            setIsLoading(false);
+          }
+        };
+
+        cursorRequest.onerror = (event) => {
+          console.error('Error al leer IndexedDB:', event.target.error);
+          setIsLoading(false);
+        };
+      } catch (error) {
+        console.error(error);
+        setIsLoading(false);
+      }
     };
 
     loadDefaultPDFs();
@@ -40,14 +129,26 @@ const App = () => {
   const handlePdfUpload = (event) => {
     const files = event.target.files;
     const newFiles = [...pdfFiles];
+    let processed = 0;
+
+    setIsLoading(true);
 
     Array.from(files).forEach((file) => {
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         const base64Pdf = reader.result;
+
+        // Almacenar el PDF en IndexedDB
+        await storePdf(file.name, base64Pdf);
+
+        // Añadir el archivo a la lista en memoria
         newFiles.push({ name: file.name, base64: base64Pdf });
-        setPdfFiles(newFiles);
-        localStorage.setItem("pdfFiles", JSON.stringify(newFiles));
+        processed++;
+
+        if (processed === files.length) {
+          setPdfFiles(newFiles);
+          setIsLoading(false);
+        }
       };
       reader.readAsDataURL(file);
     });
@@ -121,7 +222,13 @@ const App = () => {
     setPdfFiles([]);
     setSelectedFiles([]);
     setOutputFileName("pdf_combinado.pdf");
-    localStorage.removeItem("pdfFiles");
+
+    // Limpiar los PDFs de IndexedDB
+    openDb().then(db => {
+      const transaction = db.transaction('pdfs', 'readwrite');
+      const store = transaction.objectStore('pdfs');
+      store.clear();
+    }).catch(console.error);
   };
 
   const handleSelectAll = () => {
@@ -142,12 +249,15 @@ const App = () => {
         onChange={handlePdfUpload}
         multiple
         style={{ display: 'block', margin: '0 auto', marginBottom: '20px' }}
+        disabled={isLoading}
       />
+
+      {isLoading && <p style={{ color: 'blue', textAlign: 'center' }}>Cargando PDFs, por favor espera...</p>}
 
       <h2>Selecciona los PDFs para combinar (puedes cambiar el orden):</h2>
 
-      <button onClick={handleSelectAll}>Seleccionar todos</button>
-      <button onClick={handleDeselectAll} style={{ marginLeft: '10px' }}>Deseleccionar todos</button>
+      <button onClick={handleSelectAll} disabled={isLoading}>Seleccionar todos</button>
+      <button onClick={handleDeselectAll} style={{ marginLeft: '10px' }} disabled={isLoading}>Deseleccionar todos</button>
 
       <DragDropContext onDragEnd={handleReorder}>
         <Droppable droppableId="droppable">
@@ -192,7 +302,7 @@ const App = () => {
         </Droppable>
       </DragDropContext>
 
-      <select multiple onChange={handleSelectFile} style={{ width: '100%', padding: '10px', marginBottom: '20px' }}>
+      <select multiple onChange={handleSelectFile} style={{ width: '100%', padding: '10px', marginBottom: '20px' }} disabled={isLoading}>
         {pdfFiles.map((pdf, index) => (
           <option key={index} value={pdf.name}>
             {pdf.name}
@@ -214,6 +324,7 @@ const App = () => {
           border: 'none',
           borderRadius: '6px',
         }}
+        disabled={isLoading}
       >
         Eliminar todos los PDFs
       </button>
@@ -227,6 +338,7 @@ const App = () => {
           onChange={(e) => setOutputFileName(e.target.value)}
           placeholder="Introduce el nombre del archivo"
           style={{ width: '100%', padding: '10px' }}
+          disabled={isLoading}
         />
       </div>
 
@@ -241,6 +353,7 @@ const App = () => {
           borderRadius: '5px',
           fontSize: '16px',
         }}
+        disabled={isLoading || selectedFiles.length === 0}
       >
         Crear PDF combinado
       </button>
