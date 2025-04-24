@@ -54,6 +54,7 @@ const getPdf = async (name) => {
       const pdf = event.target.result;
       if (pdf) {
         resolve(pdf);
+        console.log("pdf obtenido de indexDB");
       } else {
         reject('PDF no encontrado');
       }
@@ -170,8 +171,13 @@ const App = () => {
     setSelectedFiles(reorderedFiles);
   };
 
+  const sanitizeText = (text) => {
+    return text.replace(/[^\x00-\x7F]/g, ""); // Elimina caracteres no ASCII
+  };
+  
   const handleCreatePdf = async () => {
     try {
+      console.log("Se empieza a crear el pdf");
       const pdfDoc = await PDFDocument.create();
       const indexPage = pdfDoc.addPage();
       const indexPageWidth = indexPage.getWidth();
@@ -188,43 +194,54 @@ const App = () => {
       });
       yPosition -= 20;
   
+      console.log("indice creado");
+
       selectedFiles.forEach((file, index) => {
-        indexPage.drawText(`${index + 1}. ${file}`, {
+        const sanitizedFileName = sanitizeText(file);
+        indexPage.drawText(`${index + 1}. ${sanitizedFileName}`, {
           x: 50,
           y: yPosition,
           font,
           size: 12,
         });
         yPosition -= 20;
+        console.log("pdf añadido");
       });
+
+      // Agregar un salto de página
+      indexPage.drawText("\n", {
+        x: 50,
+        y: yPosition - 20,
+        font,
+        size: 12,
+      });
+
+          // Combinamos los PDFs seleccionados
+        for (const file of selectedFiles) {
+          const pdfFile = pdfFiles.find((pdf) => pdf.name === file);
+          const existingPdfBytes = await fetch(pdfFile.base64).then(res => res.arrayBuffer());
+          const existingPdfDoc = await PDFDocument.load(existingPdfBytes);
+          const copiedPages = await pdfDoc.copyPages(existingPdfDoc, existingPdfDoc.getPageIndices());
+          copiedPages.forEach((page) => pdfDoc.addPage(page));
+        }
+
+        // Guardar el nuevo PDF
+        const pdfBytes = await pdfDoc.save();
+        const newPdfBlob = new Blob([pdfBytes], { type: "application/pdf" });
+        const newPdfUrl = URL.createObjectURL(newPdfBlob);
+
+        // Crear un enlace para descargar el PDF combinado
+        const link = document.createElement("a");
+        link.href = newPdfUrl;
+        link.download = outputFileName; // Nombre del archivo ingresado por el usuario
+        link.click();
   
-      for (const file of selectedFiles) {
-        const pdfFile = pdfFiles.find((pdf) => pdf.name === file);
-        const existingPdfBytes = await fetch(pdfFile.base64).then((res) => res.arrayBuffer());
-        const existingPdfDoc = await PDFDocument.load(existingPdfBytes);
-        const copiedPages = await pdfDoc.copyPages(existingPdfDoc, existingPdfDoc.getPageIndices());
-        copiedPages.forEach((page) => pdfDoc.addPage(page));
-      }
-  
-      const pdfBytes = await pdfDoc.save();
-      const newPdfBlob = new Blob([pdfBytes], { type: "application/pdf" });
-      const newPdfUrl = URL.createObjectURL(newPdfBlob);
-  
-      // Agregar un manejo para verificar si la URL fue creada
-      console.log("PDF generado:", newPdfUrl);
-  
-      const link = document.createElement("a");
-      link.href = newPdfUrl;
-      link.download = outputFileName;
-  
-      // Verificar si el enlace se está activando correctamente
-      link.click();
+      // El resto del código sigue igual...
     } catch (error) {
       console.error("Error al generar el PDF:", error);
       alert("Hubo un error al generar el PDF. Por favor, intenta nuevamente.");
     }
   };
-  
 
   const handleClearPdfs = () => {
     const confirmed = window.confirm("¿Estás seguro de que deseas eliminar todos los PDFs subidos?");
